@@ -8,6 +8,8 @@ object PatientSpacing {
     val itemGap = 16.dp
     val sectionGap = 48.dp
     val largeSectionGap = 80.dp
+    val cardPadding = 16.dp
+    val contentGap = 12.dp
 }
 
 object PatientTouchTarget {

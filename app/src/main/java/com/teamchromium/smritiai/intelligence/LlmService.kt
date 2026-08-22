@@ -25,22 +25,19 @@ object LlmService {
 
         val authHeader = "Bearer ${BuildConfig.GROK_API_KEY}"
 
-        var lastException: Exception? = null
-
         for (attempt in 1..MAX_ATTEMPTS) {
             try {
                 val response = GrokClient.api.getChatCompletion(authHeader, request)
-                return response.choices.firstOrNull()?.message?.content
+
+                return LlmResponseValidator.validate(response)
                     ?: "Sorry, I couldn't process that right now."
             } catch (e: IOException) {
-                lastException = e
                 if (attempt < MAX_ATTEMPTS) delay(RETRY_DELAY_MS * attempt)
             } catch (e: HttpException) {
-                lastException = e
                 if (e.code() in 500..599 && attempt < MAX_ATTEMPTS) {
                     delay(RETRY_DELAY_MS * attempt)
                 } else {
-                    throw e
+                    return "I'm having trouble connecting right now. Please try again shortly."
                 }
             }
         }

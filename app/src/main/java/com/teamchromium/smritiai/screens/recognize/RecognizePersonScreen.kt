@@ -75,6 +75,7 @@ fun RecognizePersonScreen(
     val imageCapture = remember { ImageCapture.Builder().build() }
     var captureStatus by remember { mutableStateOf<String?>(null) }
     var showUnknownPrompt by remember { mutableStateOf(false) }
+    var lastLatencyMs by remember { mutableStateOf<Long?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     DisposableEffect(lifecycleOwner, hasCameraPermission, hasConsent) {
@@ -150,6 +151,8 @@ fun RecognizePersonScreen(
                     onClick = {
                         captureStatus = null
                         showUnknownPrompt = false
+                        val startTime = System.currentTimeMillis()
+
                         val executor = ContextCompat.getMainExecutor(context)
                         imageCapture.takePicture(
                             executor,
@@ -162,6 +165,7 @@ fun RecognizePersonScreen(
 
                                         if (faces.isEmpty() || bitmap == null) {
                                             captureStatus = "No face found"
+                                            lastLatencyMs = System.currentTimeMillis() - startTime
                                             image.close()
                                             return@launch
                                         }
@@ -190,6 +194,7 @@ fun RecognizePersonScreen(
                                             }
                                         }
 
+                                        lastLatencyMs = System.currentTimeMillis() - startTime
                                         image.close()
                                     }
                                 }
@@ -213,6 +218,13 @@ fun RecognizePersonScreen(
                 captureStatus?.let {
                     Text(
                         text = it,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+
+                lastLatencyMs?.let { latency ->
+                    Text(
+                        text = "Latency: ${latency}ms",
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }

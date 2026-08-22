@@ -63,7 +63,7 @@
                                                                        ▼
                                                         ┌──────────────────────┐
                                                         │  External LLM API      │
-                                                        │  (OpenAI / Gemini)      │
+                                                        │  (Grok (x.ai))      │
                                                         │  - Summarization         │
                                                         │  - Emotion analysis       │
                                                         │  - Q&A over context        │
@@ -119,7 +119,7 @@ No raw camera or audio data is queued for network transmission at this layer.
 ### 3.3 Intelligence Layer
 This is the orchestration layer — it does **not** host a traditional backend/database. Responsibilities:
 - Assembles context (recognized person, relationship, recent memory log entries) before calling the LLM.
-- Sends transcript + context to the LLM API (OpenAI or Gemini) for:
+- Sends transcript + context to the LLM API (Grok (x.ai)) for:
   - Conversational Q&A ("Who is my sister?", "What are we talking about?")
   - Post-conversation summarization
   - Emotion/sentiment tagging (3–4 states at MVP: e.g., Neutral, Happy, Anxious)
@@ -217,7 +217,7 @@ Both stores are AES-256 encrypted at rest (NFR-S-02); encryption keys live in An
 | Face Matching | On-device similarity search over local embeddings |
 | Speech-to-Text | Android `SpeechRecognizer` |
 | Voice Output | Android `TextToSpeech` |
-| NLP (summarization, emotion, Q&A) | OpenAI API or Google Gemini (cloud, text-only) |
+| NLP (summarization, emotion, Q&A) | Grok (x.ai) API (cloud, text-only) |
 | Local Database | Room (SQLite) |
 | Key Storage | Android Keystore |
 

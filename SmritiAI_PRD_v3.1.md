@@ -25,7 +25,7 @@
 
 ### v1 → v2
 - Corrected primary form factor: **MVP is an Android mobile app (SmritiAI)**, not smart glasses. Smart glasses/wearables repositioned as a mid/long-term roadmap item, not the current build.
-- Rewrote Technical Architecture to match the actual stack: **on-device processing** (ML Kit, Room/SQLite, Android SpeechRecognizer, Android TTS) with selective cloud calls only for LLM summarization/emotion analysis (OpenAI/Gemini).
+- Rewrote Technical Architecture to match the actual stack: **on-device processing** (ML Kit, Room/SQLite, Android SpeechRecognizer, Android TTS) with selective cloud calls only for LLM summarization/emotion analysis (Grok (x.ai)).
 - Added **Emotion-Aware Memory** as a first-class functional area (previously missing).
 - Added **Memory Diary (Add Memory / Memory History)** as a functional area (previously missing).
 - Expanded Privacy & Security NFRs with the specific controls from the deck: pseudonymization, data separation, hardware-backed key storage.
@@ -110,7 +110,7 @@ Existing tools address adjacent problems but none combine real-time face recogni
 
 ### 5.3 Conversation & Voice AI Assistant ("Ask Smriti AI")
 - **FR-VA-01:** Use Android's native SpeechRecognizer for speech-to-text.
-- **FR-VA-02:** Send transcript + relevant context (recognized people, recent memory log) to an LLM (OpenAI API or Google Gemini) to answer patient questions such as "Who is my sister?" or "What are we talking about?"
+- **FR-VA-02:** Send transcript + relevant context (recognized people, recent memory log) to an LLM (Grok (x.ai) API) to answer patient questions such as "Who is my sister?" or "What are we talking about?"
 - **FR-VA-03:** Respond via Android TextToSpeech (voice) with text also shown in a chat-style interface.
 - **FR-VA-04:** Assistant responses should reference stored relationship and memory data, not just generic answers.
 
@@ -142,7 +142,7 @@ Existing tools address adjacent problems but none combine real-time face recogni
 - **NFR-P-03:** Speech recognition must remain usable in moderately noisy environments.
 
 ### 6.2 Privacy & Security (CRITICAL)
-- **NFR-S-01: On-device processing.** Face detection/matching, speech-to-text, and text-to-speech run **entirely on-device**. Only summarization/emotion analysis text is sent to an external LLM API (OpenAI/Gemini) — raw audio, images, and biometric embeddings are not sent to the cloud.
+- **NFR-S-01: On-device processing.** Face detection/matching, speech-to-text, and text-to-speech run **entirely on-device**. Only summarization/emotion analysis text is sent to an external LLM API (Grok (x.ai)) — raw audio, images, and biometric embeddings are not sent to the cloud.
 - **NFR-S-02: On-device encryption.** All locally stored data is encrypted with AES-256 before it leaves the phone's secure storage.
 - **NFR-S-03: Data separation.** Identifying information (names, relationships) is stored separately from behavioral/interaction data to limit blast radius of any single compromise.
 - **NFR-S-04: Pseudonymization.** Where data must be shared or synced (e.g., caregiver dashboard, future cloud features), real names are replaced with random IDs.
@@ -167,7 +167,7 @@ Existing tools address adjacent problems but none combine real-time face recogni
 2. **Processing Layer (on-device):**
    - *Face processing:* ML Kit detection → on-device TFLite embedding extraction → on-device face matching.
    - *Audio processing:* Android SpeechRecognizer → transcript.
-3. **Intelligence Layer:** LLM (OpenAI API / Google Gemini) for summarization and emotion analysis of transcripts; validation logic; "last seen" calculation.
+3. **Intelligence Layer:** LLM (Grok (x.ai) API) for summarization and emotion analysis of transcripts; validation logic; "last seen" calculation.
 4. **Storage Layer:** Room / SQLite local database — all data stays on-device by default.
 5. **Output Layer:** Android TextToSpeech (voice) + UI display (name, relationship, summary, mood, last seen).
 6. **Sync Layer (MVP, added v3.1):** Thin backend (auth, storage, read API) that receives only pseudonymized, minimized behavioral metadata from the device and serves it to the Caregiver Dashboard. No embeddings, raw audio, or raw images ever reach this layer.
@@ -179,7 +179,7 @@ Existing tools address adjacent problems but none combine real-time face recogni
 | Face Recognition | Google ML Kit (detection) + on-device TFLite (embedding) + on-device similarity search |
 | Speech-to-Text | Android SpeechRecognizer |
 | Voice Output | Android TextToSpeech |
-| NLP (summarization, emotion, Q&A) | OpenAI API or Google Gemini |
+| NLP (summarization, emotion, Q&A) | Grok (x.ai) API |
 | Local Database | Room (SQLite) |
 | Sync Backend (MVP, added v3.1) | Thin service — auth, storage, read API — for pseudonymized/minimized metadata only |
 | Caregiver Dashboard (MVP, added v3.1) | Web or companion view reading from the sync backend |

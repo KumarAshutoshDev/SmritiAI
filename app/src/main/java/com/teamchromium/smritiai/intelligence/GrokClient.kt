@@ -15,7 +15,7 @@ object GrokClient {
 
     val api: GrokApi by lazy {
         Retrofit.Builder()
-            .baseUrl("https://api.x.ai/v1/")
+            .baseUrl("https://api.groq.com/openai/v1/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

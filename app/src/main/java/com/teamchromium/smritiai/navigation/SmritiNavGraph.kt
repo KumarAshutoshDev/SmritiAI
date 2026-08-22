@@ -87,6 +87,7 @@ fun SmritiNavGraph(modifier: Modifier = Modifier) {
             composable(AppRoute.AddPerson) {
                 AddPersonScreen(
                     onGoToConsent = { navController.navigate(AppRoute.Consent) },
+                    onPersonSaved = { navController.popBackStack() },
                 )
             }
             composable(AppRoute.AddMemory) {

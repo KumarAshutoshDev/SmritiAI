@@ -47,10 +47,20 @@ import com.teamchromium.smritiai.ui.theme.PatientTouchTarget
 import com.teamchromium.smritiai.ui.theme.SmritiSurface
 import java.io.File
 import java.io.IOException
+import android.graphics.Bitmap
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.rememberCoroutineScope
+import com.teamchromium.smritiai.data.local.DatabaseProvider
+import com.teamchromium.smritiai.data.local.IdentityEntity
+import com.teamchromium.smritiai.recognition.EmbeddingExtractor
+import com.teamchromium.smritiai.recognition.FaceDetectorHelper
+import com.teamchromium.smritiai.recognition.toBitmap
+import kotlinx.coroutines.launch
 
 @Composable
 fun AddPersonScreen(
     onGoToConsent: () -> Unit,
+    onPersonSaved: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -88,6 +98,10 @@ fun AddPersonScreen(
 
     var name by remember { mutableStateOf("") }
     var relationship by remember { mutableStateOf("") }
+    var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     var isRecording by remember { mutableStateOf(false) }
     var voiceNotePath by remember { mutableStateOf<String?>(null) }
@@ -211,10 +225,15 @@ fun AddPersonScreen(
                         val executor = ContextCompat.getMainExecutor(context)
                         imageCapture.takePicture(
                             executor,
-                            object : ImageCapture.OnImageCapturedCallback() {
+                                                        object : ImageCapture.OnImageCapturedCallback() {
                                 override fun onCaptureSuccess(image: ImageProxy) {
+                                    capturedBitmap = image.toBitmap()
+                                    captureStatus = if (capturedBitmap != null) {
+                                        "Face photo captured"
+                                    } else {
+                                        "Could not process photo, please try again"
+                                    }
                                     image.close()
-                                    captureStatus = "Face photo captured"
                                 }
 
                                 override fun onError(exception: ImageCaptureException) {
@@ -291,6 +310,66 @@ fun AddPersonScreen(
                             style = MaterialTheme.typography.bodyLarge,
                         )
                     }
+                }
+
+                Spacer(modifier = Modifier.height(PatientSpacing.itemGap))
+
+                val canSave = capturedBitmap != null &&
+                    name.isNotBlank() &&
+                    relationship.isNotBlank() &&
+                    !isSaving
+
+                Button(
+                    onClick = {
+                        val bitmap = capturedBitmap ?: return@Button
+                        isSaving = true
+                        saveError = null
+                        coroutineScope.launch {
+                            try {
+                                val faces = FaceDetectorHelper.detectFacesInBitmap(bitmap)
+                                if (faces.isEmpty()) {
+                                    saveError = "No face found in photo, please retake it"
+                                    isSaving = false
+                                    return@launch
+                                }
+                                val embedding = EmbeddingExtractor.extractEmbedding(
+                                    context,
+                                    bitmap,
+                                    faces[0].boundingBox
+                                )
+                                val identity = IdentityEntity(
+                                    name = name,
+                                    relationship = relationship,
+                                    faceEmbedding = embedding
+                                )
+                                val identityDao = DatabaseProvider.getDatabase(context).identityDao()
+                                identityDao.insert(identity)
+                                isSaving = false
+                                onPersonSaved()
+                            } catch (e: Exception) {
+                                saveError = "Could not save, please try again"
+                                isSaving = false
+                            }
+                        }
+                    },
+                    enabled = canSave,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(PatientTouchTarget.minimum),
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(modifier = Modifier.height(24.dp))
+                    } else {
+                        Text("Save Person", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+
+                saveError?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
         }

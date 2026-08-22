@@ -8,7 +8,7 @@
 ## 1. Non-negotiables (violating these is a stop-and-ask, not a judgment call)
 
 1. **Biometric data never leaves the device.** Face embeddings, raw audio, raw images/photos are processed and stored on-device only. Never write code that transmits any of these over the network, to a log, to a crash reporter, or to an LLM API call — including as debug output. (NFR-S-01)
-2. **Only transcript/summary *text* crosses the network**, and only to the LLM API (OpenAI/Gemini) for summarization, emotion analysis, and Q&A — or to the sync backend as pseudonymized, minimized metadata for the Caregiver Dashboard. No other network egress paths for user data.
+2. **Only transcript/summary *text* crosses the network**, and only to the LLM API (Grok (x.ai)) for summarization, emotion analysis, and Q&A — or to the sync backend as pseudonymized, minimized metadata for the Caregiver Dashboard. No other network egress paths for user data.
 3. **Identity data and behavioral data stay in separate stores.** Never join, denormalize, or cache them into a single table/object that could be exfiltrated or logged as one unit. Link only via internal ID. (NFR-S-03)
 4. **Anything sent to the sync backend must be pseudonymized and minimized first**, on-device, before it leaves the phone. Real names/relationships are never sent — only random IDs plus the specific minimized fields the dashboard needs (e.g. "Met with daughter at 2:00 PM, mood: neutral"). (NFR-S-04, NFR-S-07)
 5. **All local storage is AES-256 encrypted; keys live in Android Keystore only.** Never store keys in code, resources, SharedPreferences, or environment variables. (NFR-S-02, NFR-S-05)
@@ -26,7 +26,7 @@
 | Face detection / embedding / matching | Google ML Kit (detection) + on-device TFLite (embedding) + on-device similarity search | Cloud-based face recognition APIs (Azure Face, AWS Rekognition, etc.) |
 | Speech-to-text | Android `SpeechRecognizer` | Cloud STT (Whisper API, Google Cloud Speech) for the on-device flows |
 | Text-to-speech | Android `TextToSpeech` | Third-party TTS SDKs |
-| NLP (summarization/emotion/Q&A) | OpenAI API or Gemini, text-only calls | Any call that sends images, audio, or embeddings |
+| NLP (summarization/emotion/Q&A) | Grok (x.ai) API, text-only calls | Any call that sends images, audio, or embeddings |
 | Local DB | Room (SQLite) | Realm, raw SQLite, cloud-synced local DBs (Firebase Realtime DB as local store) |
 | Key storage | Android Keystore | Custom key management, hardcoded keys |
 | Sync backend (MVP, dashboard only) | Thin service: auth + storage + read API | A full backend framework doing business logic beyond serving the dashboard |

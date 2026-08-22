@@ -1,11 +1,16 @@
 package com.teamchromium.smritiai.screens.ask
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -13,18 +18,25 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.core.content.ContextCompat
 import com.teamchromium.smritiai.network.ConnectivityStatus
 import com.teamchromium.smritiai.network.rememberConnectivityStatus
+import com.teamchromium.smritiai.speech.rememberSmritiSpeechRecognizer
+import com.teamchromium.smritiai.speech.rememberSmritiTextToSpeech
 import com.teamchromium.smritiai.ui.theme.PatientSpacing
 import com.teamchromium.smritiai.ui.theme.PatientTouchTarget
 import com.teamchromium.smritiai.ui.theme.SmritiSurface
@@ -36,9 +48,33 @@ data class ChatMessage(
 
 @Composable
 fun AskSmritiScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val speechRecognizer = rememberSmritiSpeechRecognizer()
+    val textToSpeech = rememberSmritiTextToSpeech()
     var input by remember { mutableStateOf("") }
-    val messages = remember { androidx.compose.runtime.mutableStateListOf<ChatMessage>() }
+    val messages = remember { mutableStateListOf<ChatMessage>() }
     val connectivityStatus by rememberConnectivityStatus()
+    var hasAudioPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        hasAudioPermission = granted
+    }
+
+    val recognitionState = speechRecognizer.state
+    val ttsState = textToSpeech.state
+
+    LaunchedEffect(recognitionState.transcript) {
+        if (recognitionState.transcript.isNotBlank()) {
+            input = recognitionState.transcript
+        }
+    }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -60,6 +96,15 @@ fun AskSmritiScreen(modifier: Modifier = Modifier) {
 
             ConnectivityStateCard(
                 connectivityStatus = connectivityStatus,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            VoiceStatusCard(
+                isListening = recognitionState.isListening,
+                partialTranscript = recognitionState.partialTranscript,
+                speechError = recognitionState.errorMessage,
+                isSpeaking = ttsState.isSpeaking,
+                ttsError = ttsState.errorMessage,
                 modifier = Modifier.fillMaxWidth(),
             )
 
@@ -85,17 +130,58 @@ fun AskSmritiScreen(modifier: Modifier = Modifier) {
                     enabled = connectivityStatus == ConnectivityStatus.Online,
                 )
 
+                if (!hasAudioPermission) {
+                    Button(
+                        onClick = { audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(PatientTouchTarget.minimum),
+                    ) {
+                        Text(
+                            text = "Grant Microphone Permission",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            if (recognitionState.isListening) {
+                                speechRecognizer.stopListening()
+                            } else if (connectivityStatus == ConnectivityStatus.Online) {
+                                speechRecognizer.startListening()
+                            }
+                        },
+                        enabled = connectivityStatus == ConnectivityStatus.Online,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(PatientTouchTarget.minimum),
+                    ) {
+                        Text(
+                            text = if (recognitionState.isListening) {
+                                "Stop Listening"
+                            } else if (connectivityStatus == ConnectivityStatus.Online) {
+                                "Ask With Your Voice"
+                            } else {
+                                "Voice Needs Connectivity"
+                            },
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                }
+
                 Button(
                     onClick = {
                         val text = input.trim()
                         if (text.isNotEmpty() && connectivityStatus == ConnectivityStatus.Online) {
+                            val reply = buildAssistantReply(text)
                             messages.add(ChatMessage(text = text, isUser = true))
-                            messages.add(
-                                ChatMessage(
-                                    text = "I heard your question. The assistant reply will appear here once the live response service is connected.",
-                                    isUser = false,
-                                )
-                            )
+                            messages.add(ChatMessage(text = reply, isUser = false))
+                            if (ttsState.isReady) {
+                                textToSpeech.speak(reply)
+                            }
+                            if (recognitionState.isListening) {
+                                speechRecognizer.stopListening()
+                            }
                             input = ""
                         }
                     },
@@ -112,6 +198,20 @@ fun AskSmritiScreen(modifier: Modifier = Modifier) {
                         },
                         style = MaterialTheme.typography.labelLarge,
                     )
+                }
+
+                if (ttsState.isSpeaking) {
+                    OutlinedButton(
+                        onClick = { textToSpeech.stopSpeaking() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(PatientTouchTarget.minimum),
+                    ) {
+                        Text(
+                            text = "Stop Spoken Answer",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
                 }
             }
         }
@@ -157,6 +257,53 @@ private fun ConnectivityStateCard(
                 } else {
                     "Ask Smriti AI needs internet access for answers. Recognize Person and saved memories still work offline."
                 },
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+    }
+}
+
+@Composable
+private fun VoiceStatusCard(
+    isListening: Boolean,
+    partialTranscript: String,
+    speechError: String?,
+    isSpeaking: Boolean,
+    ttsError: String?,
+    modifier: Modifier = Modifier,
+) {
+    val title = when {
+        isSpeaking -> "Speaking answer aloud"
+        isListening -> "Listening to your question"
+        else -> "Voice-first assistant"
+    }
+
+    val message = when {
+        isSpeaking -> "SmritiAI is reading the assistant response aloud. The text below is only a confirmation copy."
+        isListening && partialTranscript.isNotBlank() -> partialTranscript
+        isListening -> "Speak clearly. Your words will appear here as they are recognized."
+        speechError != null -> speechError
+        ttsError != null -> ttsError
+        else -> "You can type or use the microphone, but every assistant reply is spoken by default."
+    }
+
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(PatientSpacing.cardPadding),
+            verticalArrangement = Arrangement.spacedBy(PatientSpacing.contentGap),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(
+                text = message,
                 style = MaterialTheme.typography.bodyLarge,
             )
         }
@@ -223,4 +370,8 @@ private fun ConversationPanel(
             }
         }
     }
+}
+
+private fun buildAssistantReply(question: String): String {
+    return "I heard: $question. I will speak the assistant answer aloud by default once the live response service is connected."
 }

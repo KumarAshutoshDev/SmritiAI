@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="smriti_paper_base">#FFF0EEE6</color>
+    <color name="smriti_surface">#FFFBF9F1</color>
+    <color name="smriti_surface_alt">#FFE6E1D1</color>
+    <color name="smriti_ink_deep">#FF141413</color>
+    <color name="smriti_on_surface">#FF1B1C17</color>
+    <color name="smriti_outline">#FF767872</color>
+    <color name="smriti_primary">#FF000000</color>
+    <color name="smriti_on_primary">#FFFFFFFF</color>
+    <color name="smriti_secondary">#FF99462A</color>
+    <color name="smriti_on_secondary">#FFFFFFFF</color>
+    <color name="smriti_error">#FFBA1A1A</color>
+    <color name="smriti_on_error">#FFFFFFFF</color>
+</resources>

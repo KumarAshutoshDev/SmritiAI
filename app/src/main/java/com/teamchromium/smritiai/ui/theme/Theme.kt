@@ -24,6 +24,8 @@ private val PatientColorScheme: ColorScheme = lightColorScheme(
     outline = SmritiOutline,
     error = SmritiError,
     onError = SmritiOnError,
+    errorContainer = SmritiErrorContainer,
+    onErrorContainer = SmritiOnErrorContainer,
 )
 
 @Composable

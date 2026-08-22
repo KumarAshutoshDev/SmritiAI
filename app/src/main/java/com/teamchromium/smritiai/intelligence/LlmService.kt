@@ -1,6 +1,7 @@
 package com.teamchromium.smritiai.intelligence
 
 import com.teamchromium.smritiai.BuildConfig
+import com.teamchromium.smritiai.security.PayloadGuard
 
 object LlmService {
 
@@ -13,6 +14,8 @@ object LlmService {
                 GrokMessage(role = "user", content = question)
             )
         )
+
+        PayloadGuard.validate(request)
 
         val authHeader = "Bearer ${BuildConfig.GROK_API_KEY}"
         val response = GrokClient.api.getChatCompletion(authHeader, request)

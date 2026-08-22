@@ -13,6 +13,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,7 +51,7 @@ import com.teamchromium.smritiai.recognition.toBitmap
 
 @Composable
 fun RecognizePersonScreen(
-    onNoMatch: () -> Unit,
+    onAddPerson: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -73,6 +74,7 @@ fun RecognizePersonScreen(
     val previewView = remember { PreviewView(context) }
     val imageCapture = remember { ImageCapture.Builder().build() }
     var captureStatus by remember { mutableStateOf<String?>(null) }
+    var showUnknownPrompt by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     DisposableEffect(lifecycleOwner, hasCameraPermission, hasConsent) {
@@ -147,11 +149,12 @@ fun RecognizePersonScreen(
                 Button(
                     onClick = {
                         captureStatus = null
+                        showUnknownPrompt = false
                         val executor = ContextCompat.getMainExecutor(context)
                         imageCapture.takePicture(
                             executor,
                             object : ImageCapture.OnImageCapturedCallback() {
-                                                               @ExperimentalGetImage
+                                @ExperimentalGetImage
                                 override fun onCaptureSuccess(image: ImageProxy) {
                                     coroutineScope.launch {
                                         val faces = FaceDetectorHelper.detectFaces(image)
@@ -178,10 +181,12 @@ fun RecognizePersonScreen(
                                             is MatchResult.Found -> {
                                                 val percent = (result.confidence * 100).toInt()
                                                 captureStatus =
-                                                    "Matched: ${result.identity.name} ($percent%)"
+                                                    "Matched: ${result.identity.name} (${result.identity.relationship}) ($percent%)"
+                                                showUnknownPrompt = false
                                             }
                                             is MatchResult.NotFound -> {
-                                                onNoMatch()
+                                                captureStatus = "I don't recognize this person."
+                                                showUnknownPrompt = true
                                             }
                                         }
 
@@ -210,6 +215,40 @@ fun RecognizePersonScreen(
                         text = it,
                         style = MaterialTheme.typography.bodyLarge,
                     )
+                }
+
+                if (showUnknownPrompt) {
+                    Spacer(modifier = Modifier.height(PatientSpacing.itemGap))
+                    Text(
+                        text = "Would you like to add them to your memory diary?",
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                    )
+                    Button(
+                        onClick = onAddPerson,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(PatientTouchTarget.minimum),
+                    ) {
+                        Text(
+                            text = "Add Person",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            showUnknownPrompt = false
+                            captureStatus = null
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(PatientTouchTarget.minimum),
+                    ) {
+                        Text(
+                            text = "Skip",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
                 }
             }
         }

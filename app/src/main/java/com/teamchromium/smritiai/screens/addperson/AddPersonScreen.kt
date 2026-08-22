@@ -2,6 +2,8 @@ package com.teamchromium.smritiai.screens.addperson
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.media.MediaRecorder
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -18,8 +20,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,12 +38,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.teamchromium.smritiai.security.ConsentManager
 import com.teamchromium.smritiai.ui.theme.PatientSpacing
 import com.teamchromium.smritiai.ui.theme.PatientTouchTarget
 import com.teamchromium.smritiai.ui.theme.SmritiSurface
+import java.io.File
+import java.io.IOException
 
 @Composable
 fun AddPersonScreen(
@@ -55,16 +63,35 @@ fun AddPersonScreen(
                 PackageManager.PERMISSION_GRANTED
         )
     }
+    var hasAudioPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasCameraPermission = granted
     }
 
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasAudioPermission = granted
+    }
+
     val previewView = remember { PreviewView(context) }
     val imageCapture = remember { ImageCapture.Builder().build() }
     var captureStatus by remember { mutableStateOf<String?>(null) }
+
+    var name by remember { mutableStateOf("") }
+    var relationship by remember { mutableStateOf("") }
+
+    var isRecording by remember { mutableStateOf(false) }
+    var voiceNotePath by remember { mutableStateOf<String?>(null) }
+    var mediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
 
     DisposableEffect(lifecycleOwner, consentGranted, hasCameraPermission) {
         if (consentGranted && hasCameraPermission) {
@@ -88,7 +115,44 @@ fun AddPersonScreen(
                 }
             }, ContextCompat.getMainExecutor(context))
         }
-        onDispose { }
+        onDispose {
+            mediaRecorder?.apply {
+                try { stop() } catch (_: Exception) {}
+                try { release() } catch (_: Exception) {}
+            }
+        }
+    }
+
+    fun startRecording() {
+        val file = File(context.cacheDir, "voice_note_${System.currentTimeMillis()}.m4a")
+        val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            MediaRecorder(context)
+        } else {
+            @Suppress("DEPRECATION")
+            MediaRecorder()
+        }
+        try {
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setOutputFile(file.absolutePath)
+            recorder.prepare()
+            recorder.start()
+            mediaRecorder = recorder
+            voiceNotePath = file.absolutePath
+            isRecording = true
+        } catch (e: IOException) {
+            isRecording = false
+        }
+    }
+
+    fun stopRecording() {
+        mediaRecorder?.apply {
+            try { stop() } catch (_: Exception) {}
+            try { release() } catch (_: Exception) {}
+        }
+        mediaRecorder = null
+        isRecording = false
     }
 
     Surface(
@@ -99,6 +163,7 @@ fun AddPersonScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(PatientSpacing.screenMargin),
             verticalArrangement = Arrangement.spacedBy(PatientSpacing.itemGap),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -110,9 +175,8 @@ fun AddPersonScreen(
             )
 
             if (!consentGranted) {
-                Spacer(modifier = Modifier.height(PatientSpacing.itemGap))
                 Text(
-                    text = "Consent is required before using the camera.",
+                    text = "Consent is required before using the camera or microphone.",
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center,
                 )
@@ -122,29 +186,23 @@ fun AddPersonScreen(
                         .fillMaxWidth()
                         .height(PatientTouchTarget.minimum),
                 ) {
-                    Text(
-                        text = "Go to Consent",
-                        style = MaterialTheme.typography.labelLarge,
-                    )
+                    Text("Go to Consent", style = MaterialTheme.typography.labelLarge)
                 }
             } else if (!hasCameraPermission) {
                 Button(
-                    onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                    onClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(PatientTouchTarget.minimum),
                 ) {
-                    Text(
-                        text = "Grant Camera Permission",
-                        style = MaterialTheme.typography.labelLarge,
-                    )
+                    Text("Grant Camera Permission", style = MaterialTheme.typography.labelLarge)
                 }
             } else {
                 AndroidView(
                     factory = { previewView },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .height(300.dp),
                 )
 
                 Button(
@@ -169,17 +227,70 @@ fun AddPersonScreen(
                         .fillMaxWidth()
                         .height(PatientTouchTarget.minimum),
                 ) {
-                    Text(
-                        text = "Capture Face Photo",
-                        style = MaterialTheme.typography.labelLarge,
-                    )
+                    Text("Capture Face Photo", style = MaterialTheme.typography.labelLarge)
                 }
 
                 captureStatus?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
+                    Text(it, style = MaterialTheme.typography.bodyLarge)
+                }
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(PatientTouchTarget.minimum),
+                )
+
+                OutlinedTextField(
+                    value = relationship,
+                    onValueChange = { relationship = it },
+                    label = { Text("Relationship") },
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(PatientTouchTarget.minimum),
+                )
+
+                Spacer(modifier = Modifier.height(PatientSpacing.itemGap))
+
+                Text(
+                    text = "Optional Voice Note",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+
+                if (!hasAudioPermission) {
+                    Button(
+                        onClick = { audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(PatientTouchTarget.minimum),
+                    ) {
+                        Text("Grant Microphone Permission", style = MaterialTheme.typography.labelLarge)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            if (isRecording) stopRecording() else startRecording()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(PatientTouchTarget.minimum),
+                    ) {
+                        Text(
+                            if (isRecording) "Stop Recording" else "Record Voice Note",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+
+                    voiceNotePath?.let {
+                        Text(
+                            "Voice note saved: ${File(it).name}",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
                 }
             }
         }

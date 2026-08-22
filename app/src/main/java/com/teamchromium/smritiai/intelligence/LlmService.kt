@@ -2,8 +2,14 @@ package com.teamchromium.smritiai.intelligence
 
 import com.teamchromium.smritiai.BuildConfig
 import com.teamchromium.smritiai.security.PayloadGuard
+import kotlinx.coroutines.delay
+import retrofit2.HttpException
+import java.io.IOException
 
 object LlmService {
+
+    private const val MAX_ATTEMPTS = 3
+    private const val RETRY_DELAY_MS = 500L
 
     suspend fun askQuestion(context: LlmContext, question: String): String {
         val systemPrompt = buildSystemPrompt(context)
@@ -18,10 +24,28 @@ object LlmService {
         PayloadGuard.validate(request)
 
         val authHeader = "Bearer ${BuildConfig.GROK_API_KEY}"
-        val response = GrokClient.api.getChatCompletion(authHeader, request)
 
-        return response.choices.firstOrNull()?.message?.content
-            ?: "Sorry, I couldn't process that right now."
+        var lastException: Exception? = null
+
+        for (attempt in 1..MAX_ATTEMPTS) {
+            try {
+                val response = GrokClient.api.getChatCompletion(authHeader, request)
+                return response.choices.firstOrNull()?.message?.content
+                    ?: "Sorry, I couldn't process that right now."
+            } catch (e: IOException) {
+                lastException = e
+                if (attempt < MAX_ATTEMPTS) delay(RETRY_DELAY_MS * attempt)
+            } catch (e: HttpException) {
+                lastException = e
+                if (e.code() in 500..599 && attempt < MAX_ATTEMPTS) {
+                    delay(RETRY_DELAY_MS * attempt)
+                } else {
+                    throw e
+                }
+            }
+        }
+
+        return "I'm having trouble connecting right now. Please try again shortly."
     }
 
     private fun buildSystemPrompt(context: LlmContext): String {

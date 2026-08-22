@@ -100,12 +100,8 @@ fun AskSmritiScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            ConnectivityStateCard(
+            AssistantStatusCard(
                 connectivityStatus = connectivityStatus,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            VoiceStatusCard(
                 isListening = recognitionState.isListening,
                 partialTranscript = recognitionState.partialTranscript,
                 speechError = recognitionState.errorMessage,
@@ -248,52 +244,8 @@ fun AskSmritiScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ConnectivityStateCard(
+private fun AssistantStatusCard(
     connectivityStatus: ConnectivityStatus,
-    modifier: Modifier = Modifier,
-) {
-    val cardColors = if (connectivityStatus == ConnectivityStatus.Online) {
-        CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        )
-    } else {
-        CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        )
-    }
-
-    Card(
-        modifier = modifier,
-        colors = cardColors,
-    ) {
-        Column(
-            modifier = Modifier.padding(PatientSpacing.cardPadding),
-            verticalArrangement = Arrangement.spacedBy(PatientSpacing.contentGap),
-        ) {
-            Text(
-                text = if (connectivityStatus == ConnectivityStatus.Online) {
-                    "Ready to answer"
-                } else {
-                    "Needs connectivity"
-                },
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Text(
-                text = if (connectivityStatus == ConnectivityStatus.Online) {
-                    "Ask a question about someone you know. The assistant can answer when the device is online."
-                } else {
-                    "Ask Smriti AI needs internet access for answers. Recognize Person and saved memories still work offline."
-                },
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-    }
-}
-
-@Composable
-private fun VoiceStatusCard(
     isListening: Boolean,
     partialTranscript: String,
     speechError: String?,
@@ -301,41 +253,40 @@ private fun VoiceStatusCard(
     ttsError: String?,
     modifier: Modifier = Modifier,
 ) {
-    val title = when {
-        isSpeaking -> "Speaking answer aloud"
-        isListening -> "Listening to your question"
-        else -> "Voice-first assistant"
-    }
+    val online = connectivityStatus == ConnectivityStatus.Online
 
-    val message = when {
-        isSpeaking -> "SmritiAI is reading the assistant response aloud. The text below is only a confirmation copy."
+    val statusText = when {
+        !online -> "Needs connectivity"
+        isSpeaking -> "Speaking answer aloud"
         isListening && partialTranscript.isNotBlank() -> partialTranscript
-        isListening -> "Speak clearly. Your words will appear here as they are recognized."
+        isListening -> "Listening..."
         speechError != null -> speechError
         ttsError != null -> ttsError
-        else -> "You can type or use the microphone, but every assistant reply is spoken by default."
+        else -> "Online · Voice ready"
     }
 
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            containerColor = if (online) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.errorContainer
+            },
+            contentColor = if (online) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onErrorContainer
+            },
         ),
     ) {
-        Column(
-            modifier = Modifier.padding(PatientSpacing.cardPadding),
-            verticalArrangement = Arrangement.spacedBy(PatientSpacing.contentGap),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
+        Text(
+            text = statusText,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(PatientSpacing.cardPadding),
+        )
     }
 }
 

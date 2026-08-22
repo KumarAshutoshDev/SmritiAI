@@ -1,5 +1,6 @@
 package com.teamchromium.smritiai.intelligence
 
+import android.util.Log
 import com.teamchromium.smritiai.BuildConfig
 import com.teamchromium.smritiai.security.PayloadGuard
 import kotlinx.coroutines.delay
@@ -8,6 +9,7 @@ import java.io.IOException
 
 object LlmService {
 
+    private const val TAG = "LlmService"
     private const val MAX_ATTEMPTS = 3
     private const val RETRY_DELAY_MS = 500L
 
@@ -23,7 +25,7 @@ object LlmService {
 
         PayloadGuard.validate(request)
 
-        val authHeader = "Bearer ${BuildConfig.GROK_API_KEY}"
+        val authHeader = "Bearer ${BuildConfig.GROQ_API_KEY}"
 
         for (attempt in 1..MAX_ATTEMPTS) {
             try {
@@ -32,8 +34,10 @@ object LlmService {
                 return LlmResponseValidator.validate(response)
                     ?: "Sorry, I couldn't process that right now."
             } catch (e: IOException) {
+                Log.e(TAG, "Grok IO error", e)
                 if (attempt < MAX_ATTEMPTS) delay(RETRY_DELAY_MS * attempt)
             } catch (e: HttpException) {
+                Log.e(TAG, "Grok HTTP error: ${e.code()} ${e.message}", e)
                 if (e.code() in 500..599 && attempt < MAX_ATTEMPTS) {
                     delay(RETRY_DELAY_MS * attempt)
                 } else {

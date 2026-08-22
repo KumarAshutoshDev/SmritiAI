@@ -14,6 +14,7 @@ sqlcipher = "4.5.4"
 mlkitFaceDetection = "16.1.7"
 cameraX = "1.4.2"
 mlkitFace = "16.1.7"
+tflite = "2.14.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -41,6 +42,8 @@ androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", 
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraX" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraX" }
 androidx-sqlite = { group = "androidx.sqlite", name = "sqlite", version = "2.4.0" }
+tensorflow-lite = { group = "org.tensorflow", name = "tensorflow-lite", version.ref = "tflite" }
+tensorflow-lite-support = { group = "org.tensorflow", name = "tensorflow-lite-support", version = "0.4.4" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

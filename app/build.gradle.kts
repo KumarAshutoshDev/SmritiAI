@@ -37,6 +37,9 @@ android {
     buildFeatures {
         compose = true
     }
+        androidResources {
+        noCompress += "tflite"
+    }
 }
 
 dependencies {
@@ -68,4 +71,6 @@ dependencies {
     implementation(libs.androidx.sqlite)
     implementation(libs.mlkit.face.detection)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+    implementation(libs.tensorflow.lite)
+    implementation(libs.tensorflow.lite.support)
 }

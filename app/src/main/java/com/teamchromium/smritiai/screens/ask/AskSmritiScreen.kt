@@ -26,12 +26,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.core.content.ContextCompat
+import com.teamchromium.smritiai.data.local.DatabaseProvider
+import com.teamchromium.smritiai.intelligence.ContextAssembler
+import com.teamchromium.smritiai.intelligence.LlmService
 import com.teamchromium.smritiai.network.ConnectivityStatus
 import com.teamchromium.smritiai.network.rememberConnectivityStatus
 import com.teamchromium.smritiai.speech.rememberSmritiSpeechRecognizer
@@ -39,6 +43,7 @@ import com.teamchromium.smritiai.speech.rememberSmritiTextToSpeech
 import com.teamchromium.smritiai.ui.theme.PatientSpacing
 import com.teamchromium.smritiai.ui.theme.PatientTouchTarget
 import com.teamchromium.smritiai.ui.theme.SmritiSurface
+import kotlinx.coroutines.launch
 
 data class ChatMessage(
     val text: String,
@@ -53,6 +58,7 @@ fun AskSmritiScreen(modifier: Modifier = Modifier) {
     var input by remember { mutableStateOf("") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
     val connectivityStatus by rememberConnectivityStatus()
+    val coroutineScope = rememberCoroutineScope()
     var hasAudioPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
@@ -68,6 +74,7 @@ fun AskSmritiScreen(modifier: Modifier = Modifier) {
 
     val recognitionState = speechRecognizer.state
     val ttsState = textToSpeech.state
+    var assistantLatencyMs by remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(recognitionState.transcript) {
         if (recognitionState.transcript.isNotBlank()) {
@@ -172,16 +179,32 @@ fun AskSmritiScreen(modifier: Modifier = Modifier) {
                     onClick = {
                         val text = input.trim()
                         if (text.isNotEmpty() && connectivityStatus == ConnectivityStatus.Online) {
-                            val reply = buildAssistantReply(text)
                             messages.add(ChatMessage(text = text, isUser = true))
-                            messages.add(ChatMessage(text = reply, isUser = false))
-                            if (ttsState.isReady) {
-                                textToSpeech.speak(reply)
-                            }
+                            input = ""
                             if (recognitionState.isListening) {
                                 speechRecognizer.stopListening()
                             }
-                            input = ""
+
+                            val startTime = System.currentTimeMillis()
+
+                            coroutineScope.launch {
+                                val db = DatabaseProvider.getDatabase(context)
+                                val contextAssembler = ContextAssembler(
+                                    identityDao = db.identityDao(),
+                                    behaviorDao = db.behaviorDao(),
+                                )
+                                val llmContext = contextAssembler.assembleContext(recognizedContactId = null)
+                                val reply = LlmService.askQuestion(llmContext, text)
+
+                                val latencyMs = System.currentTimeMillis() - startTime
+                                assistantLatencyMs = latencyMs
+
+                                messages.add(ChatMessage(text = reply, isUser = false))
+
+                                if (ttsState.isReady) {
+                                    textToSpeech.speak(reply)
+                                }
+                            }
                         }
                     },
                     enabled = connectivityStatus == ConnectivityStatus.Online && input.isNotBlank(),
@@ -196,6 +219,13 @@ fun AskSmritiScreen(modifier: Modifier = Modifier) {
                             "Needs Connectivity"
                         },
                         style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+
+                assistantLatencyMs?.let { latencyMs ->
+                    Text(
+                        text = "Assistant latency: ${latencyMs}ms",
+                        style = MaterialTheme.typography.bodyLarge,
                     )
                 }
 
@@ -369,8 +399,4 @@ private fun ConversationPanel(
             }
         }
     }
-}
-
-private fun buildAssistantReply(question: String): String {
-    return "I heard: $question. I will speak the assistant answer aloud by default once the live response service is connected."
 }

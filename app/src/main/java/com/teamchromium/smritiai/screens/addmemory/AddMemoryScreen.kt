@@ -1,25 +1,96 @@
 package com.teamchromium.smritiai.screens.addmemory
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import com.teamchromium.smritiai.security.ConsentManager
 import com.teamchromium.smritiai.ui.theme.PatientSpacing
+import com.teamchromium.smritiai.ui.theme.PatientTouchTarget
 import com.teamchromium.smritiai.ui.theme.SmritiSurface
 
 @Composable
-fun AddMemoryScreen() {
+fun AddMemoryScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val consentGranted = ConsentManager.checkConsent(context)
+
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+    }
+
+    val previewView = remember { PreviewView(context) }
+    val imageCapture = remember { ImageCapture.Builder().build() }
+    var captureStatus by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(lifecycleOwner, consentGranted, hasCameraPermission) {
+        if (consentGranted && hasCameraPermission) {
+            val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+            cameraProviderFuture.addListener({
+                val cameraProvider = cameraProviderFuture.get()
+                val preview = Preview.Builder().build().also {
+                    it.setSurfaceProvider(previewView.surfaceProvider)
+                }
+                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                try {
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        cameraSelector,
+                        preview,
+                        imageCapture
+                    )
+                } catch (exc: Exception) {
+                    captureStatus = "Camera error"
+                }
+            }, ContextCompat.getMainExecutor(context))
+        }
+        onDispose { }
+    }
+
     Surface(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         color = SmritiSurface,
         contentColor = MaterialTheme.colorScheme.onBackground,
     ) {
@@ -27,7 +98,7 @@ fun AddMemoryScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(PatientSpacing.screenMargin),
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.spacedBy(PatientSpacing.itemGap),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
@@ -35,11 +106,69 @@ fun AddMemoryScreen() {
                 style = MaterialTheme.typography.headlineLarge,
                 textAlign = TextAlign.Center,
             )
-            Spacer(modifier = Modifier.height(PatientSpacing.itemGap))
-            Text(
-                text = "Coming soon",
-                style = MaterialTheme.typography.bodyLarge,
-            )
+
+            if (!consentGranted) {
+                Spacer(modifier = Modifier.height(PatientSpacing.itemGap))
+                Text(
+                    text = "Consent is required before using the camera.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                )
+            } else if (!hasCameraPermission) {
+                Button(
+                    onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(PatientTouchTarget.minimum),
+                ) {
+                    Text(
+                        text = "Grant Camera Permission",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            } else {
+                AndroidView(
+                    factory = { previewView },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(320.dp),
+                )
+
+                Button(
+                    onClick = {
+                        captureStatus = null
+                        val executor = ContextCompat.getMainExecutor(context)
+                        imageCapture.takePicture(
+                            executor,
+                            object : ImageCapture.OnImageCapturedCallback() {
+                                override fun onCaptureSuccess(image: ImageProxy) {
+                                    image.close()
+                                    captureStatus = "Memory photo captured"
+                                }
+
+                                override fun onError(exception: ImageCaptureException) {
+                                    captureStatus = "Capture failed"
+                                }
+                            }
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(PatientTouchTarget.minimum),
+                ) {
+                    Text(
+                        text = "Capture Memory Photo",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+
+                captureStatus?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            }
         }
     }
 }

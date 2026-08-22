@@ -50,9 +50,17 @@ import com.teamchromium.smritiai.ui.theme.PatientSpacing
 import com.teamchromium.smritiai.ui.theme.PatientTouchTarget
 import com.teamchromium.smritiai.ui.theme.SmritiSurface
 import kotlinx.coroutines.launch
+import com.teamchromium.smritiai.data.local.DatabaseProvider
+import com.teamchromium.smritiai.recognition.EmbeddingExtractor
+import com.teamchromium.smritiai.recognition.FaceMatcher
+import com.teamchromium.smritiai.recognition.MatchResult
+import com.teamchromium.smritiai.recognition.toBitmap
 
 @Composable
-fun RecognizePersonScreen(modifier: Modifier = Modifier) {
+fun RecognizePersonScreen(
+    onNoMatch: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val faceMatcher = remember {
@@ -156,13 +164,41 @@ fun RecognizePersonScreen(modifier: Modifier = Modifier) {
                         imageCapture.takePicture(
                             executor,
                             object : ImageCapture.OnImageCapturedCallback() {
-                                @ExperimentalGetImage
+                                                               @ExperimentalGetImage
                                 override fun onCaptureSuccess(image: ImageProxy) {
                                     coroutineScope.launch {
-                                        recognitionState = image.resolveRecognitionState(
-                                            context = context,
-                                            faceMatcher = faceMatcher,
+                                        val faces = FaceDetectorHelper.detectFaces(image)
+                                        val bitmap = image.toBitmap()
+
+                                        if (faces.isEmpty() || bitmap == null) {
+                                            captureStatus = "No face found"
+                                            image.close()
+                                            return@launch
+                                        }
+
+                                        val firstFace = faces[0]
+                                        val embedding = EmbeddingExtractor.extractEmbedding(
+                                            context,
+                                            bitmap,
+                                            firstFace.boundingBox
                                         )
+
+                                        val identityDao = DatabaseProvider.getDatabase(context).identityDao()
+                                        val matcher = FaceMatcher(identityDao)
+                                        val result = matcher.findBestMatch(embedding)
+
+                                        when (result) {
+                                            is MatchResult.Found -> {
+                                                val percent = (result.confidence * 100).toInt()
+                                                captureStatus =
+                                                    "Matched: ${result.identity.name} ($percent%)"
+                                            }
+                                            is MatchResult.NotFound -> {
+                                                onNoMatch()
+                                            }
+                                        }
+
+                                        image.close()
                                     }
                                 }
 

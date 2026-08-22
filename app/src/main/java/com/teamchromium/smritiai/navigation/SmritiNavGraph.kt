@@ -16,6 +16,7 @@ import com.teamchromium.smritiai.screens.consent.ConsentScreen
 import com.teamchromium.smritiai.screens.home.HomeScreen
 import com.teamchromium.smritiai.screens.memoryhistory.MemoryHistoryScreen
 import com.teamchromium.smritiai.screens.recognize.RecognizePersonScreen
+import com.teamchromium.smritiai.screens.unknownperson.UnknownPersonScreen
 import com.teamchromium.smritiai.security.ConsentManager
 
 private object AppRoute {
@@ -23,6 +24,7 @@ private object AppRoute {
     const val Shell = "shell"
     const val Ask = "ask"
     const val Recognize = "recognize"
+    const val UnknownPerson = "unknownperson"
     const val AddPerson = "addperson"
     const val AddMemory = "addmemory"
     const val MemoryHistory = "memoryhistory"
@@ -71,12 +73,21 @@ fun SmritiNavGraph(modifier: Modifier = Modifier) {
             composable(AppRoute.Ask) {
                 AskSmritiScreen()
             }
-            composable(AppRoute.Recognize) {
-                RecognizePersonScreen()
+                        composable(AppRoute.Recognize) {
+                RecognizePersonScreen(
+                    onNoMatch = { navController.navigate(AppRoute.UnknownPerson) },
+                )
+            }
+            composable(AppRoute.UnknownPerson) {
+                UnknownPersonScreen(
+                    onAddPerson = { navController.navigate(AppRoute.AddPerson) },
+                    onSkip = { navController.popBackStack() },
+                )
             }
             composable(AppRoute.AddPerson) {
                 AddPersonScreen(
                     onGoToConsent = { navController.navigate(AppRoute.Consent) },
+                    onPersonSaved = { navController.popBackStack() },
                 )
             }
             composable(AppRoute.AddMemory) {

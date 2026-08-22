@@ -18,4 +18,7 @@ interface BehaviorDao {
 
     @Query("SELECT MAX(timestamp) FROM behavior WHERE contactId = :contactId")
     suspend fun getLastSeen(contactId: Long): Long?
+
+    @Query("SELECT aiSummary FROM behavior WHERE aiSummary IS NOT NULL ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getRecentSummaries(limit: Int): List<String>
 }

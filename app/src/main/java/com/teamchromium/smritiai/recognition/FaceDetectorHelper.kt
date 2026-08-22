@@ -32,4 +32,12 @@ object FaceDetectorHelper {
             emptyList()
         }
     }
+    suspend fun detectFacesInBitmap(bitmap: android.graphics.Bitmap): List<Face> {
+        val inputImage = InputImage.fromBitmap(bitmap, 0)
+        return try {
+            detector.process(inputImage).await()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }

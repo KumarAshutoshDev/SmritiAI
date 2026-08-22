@@ -14,7 +14,7 @@ sqlcipher = "4.5.4"
 mlkitFaceDetection = "16.1.7"
 cameraX = "1.4.2"
 mlkitFace = "16.1.7"
-tflite = "2.14.0"
+tflite = "2.5.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
